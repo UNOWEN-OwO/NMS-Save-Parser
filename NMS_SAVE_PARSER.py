@@ -397,15 +397,15 @@ def load_file(file_path):
         if src.read(1):
             src.seek(0)
             dest = src.read().rstrip(b'\x00')
-            SRC_MODE = 1
+            SRC_MODE = 3
         else:
             dest = dest.rstrip(b'\x00')
             SRC_MODE = 2
         data = json.loads(dest.decode('utf-8'))
         if len([k for k in data.keys() if len(k) == 3]) > 3:
             map_keys(data, decode_map)
-            if SRC_MODE == 1:
-                SRC_MODE = 3
+            if SRC_MODE == 3:
+                SRC_MODE = 1
         return data
 
 
