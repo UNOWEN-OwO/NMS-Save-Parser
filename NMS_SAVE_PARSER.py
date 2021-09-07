@@ -25,7 +25,7 @@ SIGNAL = False
 
 
 class JsonDelegate(QtWidgets.QItemDelegate):
-    
+
     def __init__(self, parent, notificator):
         super(JsonDelegate, self).__init__(parent)
         self.tree = parent
@@ -62,7 +62,6 @@ class JsonNode(QtWidgets.QTreeWidgetItem):
 
 
 class JsonView(QtWidgets.QWidget):
-
     def __init__(self):
         super(JsonView, self).__init__()
 
@@ -234,41 +233,27 @@ class JsonViewer(QtWidgets.QMainWindow):
         self.menu = self.menuBar()
         self.file = self.menu.addMenu('File')
 
-        def set_action(name, connect, shortcut=None, disable=False, check=False, tip=None):
-            act = QtWidgets.QAction(name, self)
-            if shortcut:
-                act.setShortcut(shortcut)
-            if tip:
-                act.setStatusTip(tip)
-            act.triggered.connect(connect)
-            if check:
-                act.setCheckable(True)
-                act.setChecked(False)
-            if disable:
-                act.setDisabled(disable)
-            return act
-
-        self.file.addAction(set_action('&Open', self.open_file, shortcut='Ctrl+O'))
-        self.file.addAction(set_action('&Save', self.save_file, shortcut='Ctrl+S', disable=True))
-        self.file.addAction(set_action('&Save As', self.save_file_as, shortcut='Ctrl+Shift+S', disable=True))
-        self.file.addAction(set_action('&Reset', self.json_view.reset, shortcut='Ctrl+R', disable=True))
-        self.file.addAction(set_action('&Reload', self.reload_file, shortcut='Ctrl+L', disable=True))
-        self.file.addAction(set_action('&Exit', QtWidgets.qApp.quit, shortcut='Alt+F4'))
+        self.file.addAction(self._set_action('&Open', self.open_file, Shortcut='Ctrl+O'))
+        self.file.addAction(self._set_action('&Save', self.save_file, Shortcut='Ctrl+S', Disabled=True))
+        self.file.addAction(self._set_action('&Save As', self.save_file_as, Shortcut='Ctrl+Shift+S', Disabled=True))
+        self.file.addAction(self._set_action('&Reset', self.json_view.reset, Shortcut='Ctrl+R', Disabled=True))
+        self.file.addAction(self._set_action('&Reload', self.reload_file, Shortcut='Ctrl+L', Disabled=True))
+        self.file.addAction(self._set_action('&Exit', QtWidgets.qApp.quit, Shortcut='Alt+F4'))
 
         self.edit = self.menu.addMenu('Edit')
-        self.edit.addAction(set_action('&Find', self.json_view.find, shortcut='Ctrl+F'))
-        self.edit.addAction(set_action('&Find Next', self.json_view.find_next, shortcut='F3'))
-        self.edit.addAction(set_action('&Find Prev', self.json_view.find_prev, shortcut='Shift+F3'))
+        self.edit.addAction(self._set_action('&Find', self.json_view.find, Shortcut='Ctrl+F'))
+        self.edit.addAction(self._set_action('&Find Next', self.json_view.find_next, Shortcut='F3'))
+        self.edit.addAction(self._set_action('&Find Prev', self.json_view.find_prev, Shortcut='Shift+F3'))
 
         self.tool = self.menu.addMenu('Convert')
-        self.tool.addAction(set_action('&As Source', lambda: self.set_convert(0), check=True))
-        self.tool.addAction(set_action('&Decompressed', lambda: self.set_convert(2), check=True))
-        self.tool.addAction(set_action('&Compressed', lambda: self.set_convert(1), check=True))
-        self.tool.addAction(set_action('&Mapped', lambda: self.set_convert(3), check=True))
+        self.tool.addAction(self._set_action('&As Source', lambda: self.set_convert(0), Checkable=True, Checked=False))
+        self.tool.addAction(self._set_action('&Decompressed', lambda: self.set_convert(2), Checkable=True, Checked=False))
+        self.tool.addAction(self._set_action('&Compressed', lambda: self.set_convert(1), Checkable=True, Checked=False))
+        self.tool.addAction(self._set_action('&Mapped', lambda: self.set_convert(3), Checkable=True, Checked=False))
         self.tool.setDisabled(True)
 
         self.export = self.menu.addMenu('Export')
-        self.export.addAction(set_action('&Export Node', self.json_view.export_node, shortcut='Ctrl+E'))
+        self.export.addAction(self._set_action('&Export Node', self.json_view.export_node, Shortcut='Ctrl+E'))
         self.export.setDisabled(True)
 
         # exp = self.menu.addMenu('Experimental')
@@ -282,6 +267,13 @@ class JsonViewer(QtWidgets.QMainWindow):
             self.open_file(argv[1])
 
         self.show()
+
+    def _set_action(self, name, connect, **kwargs):
+        act = QtWidgets.QAction(name, self)
+        for k, v in kwargs.items():
+            getattr(act, f"set{k}")(v)
+        act.triggered.connect(connect)
+        return act
 
     def set_convert(self, mode=0):
         global SAVE_MODE
@@ -337,7 +329,7 @@ def load_config():
         save_config()
     except OSError:
         save_config()
-    except e:
+    except Exception as e:
         print(':angri:', e)
 
 
