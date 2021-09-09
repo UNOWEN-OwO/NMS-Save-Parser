@@ -40,6 +40,7 @@ class JsonDelegate(QtWidgets.QItemDelegate):
             item = self.tree.currentItem()
             item.data[index.column()] = type(item.data[index.column()])(editor.text())
             super(JsonDelegate, self).setModelData(editor, model, index)
+            item.parent().remap_node()
         except ValueError:
             self.notificator.setText('Invalid Value, expect ' + str(type(self.tree.currentItem().data[index.column()])))
 
@@ -51,6 +52,7 @@ class JsonNode(QtWidgets.QTreeWidgetItem):
         super(JsonNode, self).__init__([str(d) for d in data if d is not None])
         self.data = data
         self.dataEdit = [True, data[1] is not None]
+        self.node = dict()
 
     def find(self, find_str):
         queue = []
@@ -59,6 +61,17 @@ class JsonNode(QtWidgets.QTreeWidgetItem):
         for i in range(self.childCount()):
             queue += self.child(i).find(find_str)
         return queue
+
+    def addChild(self, child):
+        super(JsonNode, self).addChild(child)
+        self.node[child.data[0]] = child
+
+    def set_value(self, value):
+        self.data[1] = value
+        self.setText(1, str(value))
+
+    def remap_node(self):
+        self.node = dict([(v.data[0], v) for v in self.node.values()])
 
 
 class JsonView(QtWidgets.QWidget):
@@ -133,11 +146,13 @@ class JsonView(QtWidgets.QWidget):
     def reset(self):
         self.notification.setText('Loading...')
         self.notification.repaint()
-        self.tree_widget.takeTopLevelItem(0)
         if self.json_data:
+            self.find_queue = []
+            self.find_str = None
+            self.tree_widget.takeTopLevelItem(0)
             self.root_item = self.recurse_json(self.json_data)
-        self.tree_widget.addTopLevelItem(self.root_item)
-        self.tree_widget.setItemDelegate(JsonDelegate(self.tree_widget, self.notification))
+            self.tree_widget.addTopLevelItem(self.root_item)
+            self.tree_widget.setItemDelegate(JsonDelegate(self.tree_widget, self.notification))
         self.notification.setText('Ready')
         self.notification.repaint()
 
@@ -175,17 +190,19 @@ class JsonView(QtWidgets.QWidget):
                 self.find_queue = self.root_item.find(self.find_str.lower())
 
             self.find_next()
+        else:
+            self.find_box.setFocus()
 
     def find_next(self):
         if self.find_box.text() != self.find_str:
-            find()
+            self.find()
         elif self.find_queue:
             self.find_idx = (self.find_idx + 1 + len(self.find_queue)) % len(self.find_queue)
             self.find_result()
 
     def find_prev(self):
         if self.find_box.text() != self.find_str:
-            find()
+            self.find()
         elif self.find_queue:
             self.find_idx = (self.find_idx - 1 + len(self.find_queue)) % len(self.find_queue)
             self.find_result()
@@ -194,6 +211,7 @@ class JsonView(QtWidgets.QWidget):
         if self.find_queue:
             self.notification.setText('{} of {} find'.format(self.find_idx+1, len(self.find_queue)))
             self.tree_widget.setCurrentItem(self.find_queue[self.find_idx])
+            self.tree_widget.scroll(0, 20)
         else:
             self.notification.setText('No result found')
 
@@ -218,6 +236,34 @@ class JsonView(QtWidgets.QWidget):
         else:
             node = JsonNode([key, data])
         return node
+
+    def exd_complete(self):
+        try:
+            if (sd := self.root_item.node['PlayerStateData'].node['SeasonData']).node['SeasonId'].data[1] != 0:
+                expd_ms = [ms.node['Amount'].data[1] for stg in sd.node['Stages'].node.values() for ms in stg.node['Milestones'].node.values()]
+                ms_v = self.root_item.node['PlayerStateData'].node['SeasonState'].node['MilestoneValues']
+                self.tree_widget.setCurrentItem(ms_v)
+                expd_ms_store = ms_v.node.values()
+                if len(expd_ms) == len(expd_ms_store):
+                    for s, d in zip(expd_ms, expd_ms_store):
+                        d.set_value(s)
+                    self.notification.setText('Done')
+                else:
+                    self.notification.setText('Milestone count error')
+            else:
+                self.notification.setText('Not a NMS Expedition save')
+        except KeyError:
+            self.notification.setText('Unable to resolve data')
+        except Exception as e:
+            print(':angri:', e)
+
+    def switch_judgement(self, judge):
+        if not self.tree_widget.currentItem() or self.tree_widget.currentItem().data[0] != 'SettlementJudgementType':
+            self.find_box.setText('SettlementJudgementType')
+            self.find()
+        else:
+            self.tree_widget.currentItem().setText(1, judge)
+            self.tree_widget.currentItem().data[1] = judge
 
 
 class JsonViewer(QtWidgets.QMainWindow):
@@ -256,7 +302,16 @@ class JsonViewer(QtWidgets.QMainWindow):
         self.export.addAction(self._set_action('&Export Node', self.json_view.export_node, Shortcut='Ctrl+E'))
         self.export.setDisabled(True)
 
-        # exp = self.menu.addMenu('Experimental')
+        self.exp = self.menu.addMenu('Experimental')
+        self.exp.addAction(self._set_action('&Complete Expedition Mission\n(Save then claim in game)', self.json_view.exd_complete))
+        settlement_fix = self.exp.addMenu('Settlement Judgement\n(Jump next if not selecting any)')
+        settlement_fix.addAction(self._set_action('&BuildingChoice', lambda: self.json_view.switch_judgement('BuildingChoice')))
+        settlement_fix.addAction(self._set_action('&Policy', lambda: self.json_view.switch_judgement('Policy')))
+        settlement_fix.addAction(self._set_action('&Request', lambda: self.json_view.switch_judgement('Request')))
+        settlement_fix.addAction(self._set_action('&StrangerVisit', lambda: self.json_view.switch_judgement('StrangerVisit')))
+        settlement_fix.addAction(self._set_action('&Conflict', lambda: self.json_view.switch_judgement('Conflict')))
+        self.exp.addMenu(settlement_fix)
+        self.exp.setDisabled(True)
         # exp.addAction('Combine Discovery')
         # exp.addAction('Combine Base')
         # exp.addAction('Export Base')
@@ -267,6 +322,7 @@ class JsonViewer(QtWidgets.QMainWindow):
             self.open_file(argv[1])
 
         self.show()
+        self.resize(800, 600)
 
     def _set_action(self, name, connect, **kwargs):
         act = QtWidgets.QAction(name, self)
@@ -297,6 +353,7 @@ class JsonViewer(QtWidgets.QMainWindow):
             self.tool.setDisabled(False)
             self.tool.actions()[SAVE_MODE].setChecked(True)
             self.export.setDisabled(False)
+            self.exp.setDisabled(False)
 
     def reload_file(self):
         self.json_view.open_file(self.path)
