@@ -39,10 +39,12 @@ DATETIME_LIST = ['BirthTime',
                  'LastTrustIncreaseTime',
                  'LastUpdateTimestamp',
                  'LastUpkeepDebtCheckTime',
+                 'RecurrenceDeadline',
                  'StartTimeUTC',
                  'TimeOfLastIncomeCollection',
                  'Timestamp',
                  'TSrec',
+                 'TS',
                  ]
 
 DATETIME_LIST_LIST = ['LastBuildingUpgradesTimestamps']
@@ -54,6 +56,13 @@ TIMEDELTA_LIST = ['HazardTimeAlive',
                   'TimeLastSpaceBattle',
                   'TotalPlayTime',
                   ]
+
+SPECIAL_TS = ["MissionSeed",
+              "Seed",
+              ]
+
+TM1 = 1451606400
+TM2 = 1893456000
 
 
 class JsonDelegate(QtWidgets.QItemDelegate):
@@ -283,6 +292,8 @@ class JsonView(QtWidgets.QWidget):
                     data = datetime.fromtimestamp(data)
                 elif str(key) in TIMEDELTA_LIST:
                     data = timedelta(seconds=data)
+                elif type(data) == int and str(key) in SPECIAL_TS and TM1 < data < TM2:
+                    data = datetime.fromtimestamp(data)
             node = JsonNode([key, data])
         return node
 
