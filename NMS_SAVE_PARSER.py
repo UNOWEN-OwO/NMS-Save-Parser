@@ -5,6 +5,9 @@ import json
 import struct
 from sys import argv, exit
 from pathlib import Path
+from datetime import datetime, timedelta
+from pytimeparse.timeparse import timeparse
+import time
 
 import lz4.block as lb
 from PyQt5 import QtCore
@@ -20,8 +23,37 @@ PATH = '.\\'
 SAVE_MODE = 0
 SRC_MODE = 1
 SLICE = 524288
+SHOW_DATETIME = True
 
-SIGNAL = False
+DATETIME_LIST = ['BirthTime',
+                 'DbTimestamp',
+                 'EndTimeUTC',
+                 'LastAlertChangeTime',
+                 'LastBrokenTimestamp',
+                 'LastChangeTimestamp',
+                 'LastCompletedTimestamp',
+                 'LastDebtChangeTime',
+                 'LastEggTime',
+                 'LastJudgementTime',
+                 'LastTrustDecreaseTime',
+                 'LastTrustIncreaseTime',
+                 'LastUpdateTimestamp',
+                 'LastUpkeepDebtCheckTime',
+                 'StartTimeUTC',
+                 'TimeOfLastIncomeCollection',
+                 'Timestamp',
+                 'TSrec',
+                 ]
+
+DATETIME_LIST_LIST = ['LastBuildingUpgradesTimestamps']
+
+TIMEDELTA_LIST = ['HazardTimeAlive',
+                  'SunTimer',
+                  'TimeAlive',
+                  'TimeLastMiniStation',
+                  'TimeLastSpaceBattle',
+                  'TotalPlayTime',
+                  ]
 
 
 class JsonDelegate(QtWidgets.QItemDelegate):
@@ -38,21 +70,30 @@ class JsonDelegate(QtWidgets.QItemDelegate):
     def setModelData(self, editor, model, index):
         try:
             item = self.tree.currentItem()
-            item.data[index.column()] = type(item.data[index.column()])(editor.text())
+            if SHOW_DATETIME:
+                if type(item.data[index.column()]) == datetime:
+                    item.data[index.column()] = datetime.fromisoformat(editor.text())
+                elif type(item.data[index.column()]) == timedelta:
+                    item.data[index.column()] = timedelta(seconds=timeparse(editor.text()))
+            else:
+                item.data[index.column()] = type(item.data[index.column()])(editor.text())
             super(JsonDelegate, self).setModelData(editor, model, index)
-            item.parent().remap_node()
+            if index.column() == 0:
+                item.parent().remap_node()
         except ValueError:
             self.notificator.setText('Invalid Value, expect ' + str(type(self.tree.currentItem().data[index.column()])))
+        except TypeError:
+            self.notificator.setText('Invalid Datetime format, expected YYYY-MM-DD hh-mm-ss')
 
 
 class JsonNode(QtWidgets.QTreeWidgetItem):
-    is_list = False
 
     def __init__(self, data):
-        super(JsonNode, self).__init__([str(d) for d in data if d is not None])
+        self.is_list = False
         self.data = data
         self.dataEdit = [True, data[1] is not None]
         self.node = dict()
+        super(JsonNode, self).__init__([str(d) for d in data if d is not None])
 
     def find(self, find_str):
         queue = []
@@ -90,7 +131,7 @@ class JsonView(QtWidgets.QWidget):
 
         # Tree
         self.tree_widget = QtWidgets.QTreeWidget()
-        self.tree_widget.setHeaderLabels(["Key", "Value"])
+        self.tree_widget.setHeaderLabels(['Key', 'Value'])
         self.tree_widget.header().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
 
         self.root_item = self.recurse_json(None)
@@ -172,7 +213,7 @@ class JsonView(QtWidgets.QWidget):
         self.find_box.returnPressed.connect(self.find)
 
         # Find Button
-        find_button = QtWidgets.QPushButton("Find")
+        find_button = QtWidgets.QPushButton('Find')
         find_button.clicked.connect(self.find)
 
         layout = QtWidgets.QHBoxLayout()
@@ -199,6 +240,8 @@ class JsonView(QtWidgets.QWidget):
         elif self.find_queue:
             self.find_idx = (self.find_idx + 1 + len(self.find_queue)) % len(self.find_queue)
             self.find_result()
+        else:
+            self.notification.setText('No result found')
 
     def find_prev(self):
         if self.find_box.text() != self.find_str:
@@ -206,18 +249,18 @@ class JsonView(QtWidgets.QWidget):
         elif self.find_queue:
             self.find_idx = (self.find_idx - 1 + len(self.find_queue)) % len(self.find_queue)
             self.find_result()
+        else:
+            self.notification.setText('No result found')
 
     def find_result(self):
         if self.find_queue:
             self.notification.setText('{} of {} find'.format(self.find_idx+1, len(self.find_queue)))
             self.tree_widget.setCurrentItem(self.find_queue[self.find_idx])
-            self.tree_widget.scroll(0, 20)
+            # self.tree_widget.scroll(0, 20)
         else:
             self.notification.setText('No result found')
 
-    def recurse_json(self, data, key='Root'):
-        if SIGNAL:
-            return None
+    def recurse_json(self, data, key='Root', ts_list=False):
         if isinstance(data, dict):
             node = JsonNode([key, None])
             for key, val in data.items():
@@ -227,13 +270,19 @@ class JsonView(QtWidgets.QWidget):
         elif isinstance(data, list):
             node = JsonNode([key, None])
             node.is_list = True
+            ts_list = key in DATETIME_LIST_LIST
             for i, val in enumerate(data):
                 key = str(i)
-                row_item = self.recurse_json(val, key)
+                row_item = self.recurse_json(val, key, ts_list)
                 row_item.setFlags(row_item.flags() | QtCore.Qt.ItemIsEditable)
                 row_item.dataEdit[0] = False
                 node.addChild(row_item)
         else:
+            if SHOW_DATETIME:
+                if ts_list or str(key) in DATETIME_LIST:
+                    data = datetime.fromtimestamp(data)
+                elif str(key) in TIMEDELTA_LIST:
+                    data = timedelta(seconds=data)
             node = JsonNode([key, data])
         return node
 
@@ -262,6 +311,7 @@ class JsonView(QtWidgets.QWidget):
             self.find_box.setText('SettlementJudgementType')
             self.find()
         else:
+            self.notification.setText(self.tree_widget.currentItem().data[1] + ' -> ' + judge)
             self.tree_widget.currentItem().setText(1, judge)
             self.tree_widget.currentItem().data[1] = judge
 
@@ -274,7 +324,7 @@ class JsonViewer(QtWidgets.QMainWindow):
         self.json_view = JsonView()
 
         self.setCentralWidget(self.json_view)
-        self.setWindowTitle("NMS Save Tools")
+        self.setWindowTitle('NMS Save Parser')
 
         self.menu = self.menuBar()
         self.file = self.menu.addMenu('File')
@@ -327,7 +377,7 @@ class JsonViewer(QtWidgets.QMainWindow):
     def _set_action(self, name, connect, **kwargs):
         act = QtWidgets.QAction(name, self)
         for k, v in kwargs.items():
-            getattr(act, f"set{k}")(v)
+            getattr(act, f'set{k}')(v)
         act.triggered.connect(connect)
         return act
 
@@ -374,14 +424,17 @@ class JsonViewer(QtWidgets.QMainWindow):
     #         self.close()
 
 
+
+
 def load_config():
-    global PATH, SAVE_MODE, SLICE
+    global PATH, SAVE_MODE, SLICE, SHOW_DATETIME
     try:
         with open('config.json') as config:
             c = json.load(config)
             PATH = c['PATH']
             SAVE_MODE = c['SAVE_MODE']
             SLICE = c['SLICE']
+            SHOW_DATETIME = c['SHOW_DATETIME']
     except KeyError:
         save_config()
     except OSError:
@@ -392,7 +445,7 @@ def load_config():
 
 def save_config():
     with open('config.json', 'w') as config:
-        json.dump({'PATH': PATH, 'SAVE_MODE': SAVE_MODE, 'SLICE': SLICE}, config)
+        json.dump({'PATH': PATH, 'SAVE_MODE': SAVE_MODE, 'SLICE': SLICE, 'SHOW_DATETIME': SHOW_DATETIME}, config)
 
 
 def map_keys(node, mapping):
@@ -411,6 +464,12 @@ def map_keys(node, mapping):
 
 def serialize_json(node):
     if node.data[1] is not None:
+        if SHOW_DATETIME:
+            if type(node.data[1]) == datetime:
+                return int(time.mktime(node.data[1].timetuple()))
+                # return int(node.data[1].timestamp()) # Unable to use due to python bug :angri:
+            elif type(node.data[1]) == timedelta:
+                return int(node.data[1].total_seconds())
         return node.data[1]
     elif node.is_list:
         return [serialize_json(node.child(i)) for i in range(node.childCount())]
@@ -475,5 +534,5 @@ with open('mapping.json', encoding='utf-8') as mapping_file:
         decode_map[m['Key']] = m['Value']
         encode_map[m['Value']] = m['Key']
 
-if "__main__" == __name__:
+if '__main__' == __name__:
     main()
