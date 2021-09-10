@@ -424,8 +424,6 @@ class JsonViewer(QtWidgets.QMainWindow):
     #         self.close()
 
 
-
-
 def load_config():
     global PATH, SAVE_MODE, SLICE, SHOW_DATETIME
     try:
