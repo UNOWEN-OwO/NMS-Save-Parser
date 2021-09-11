@@ -104,12 +104,12 @@ class JsonNode(QtWidgets.QTreeWidgetItem):
         self.node = dict()
         super(JsonNode, self).__init__([str(d) for d in data if d is not None])
 
-    def find(self, find_str):
+    def find(self, find_str, find_condition):
         queue = []
-        if find_str in '#'.join([str(i) for i in self.data]).lower():
+        if find_condition(find_str, self):
             queue = [self]
         for i in range(self.childCount()):
-            queue += self.child(i).find(find_str)
+            queue += self.child(i).find(find_str, find_condition)
         return queue
 
     def addChild(self, child):
@@ -237,7 +237,7 @@ class JsonView(QtWidgets.QWidget):
             if find_str != self.find_str:
                 self.find_str = find_str
                 self.find_idx = -1
-                self.find_queue = self.root_item.find(self.find_str.lower())
+                self.find_queue = self.root_item.find(self.find_str.lower(), default_find)
 
             self.find_next()
         else:
@@ -326,6 +326,16 @@ class JsonView(QtWidgets.QWidget):
             self.tree_widget.currentItem().setText(1, judge)
             self.tree_widget.currentItem().data[1] = judge
 
+    def fix_timestamp(self):
+        def value_type_find(find_type, obj):
+            return type(obj.data[1]) == find_type and 'Seed' not in obj.data[0] and 'Dead' not in obj.data[0] and 'UTC' not in obj.data[0] and obj.data[1] > datetime.now()
+        datetime_list = self.root_item.find(datetime, value_type_find)
+        for item in datetime_list:
+            print(item.data[0]+':', item.data[1], '-> ', end='')
+            item.set_value(datetime.now() - timedelta(hours=2))
+            print(item.data[1])
+        self.notification.setText('Tried to fix ' + str(len(datetime_list)) + ' items, check console output for detail')
+
 
 class JsonViewer(QtWidgets.QMainWindow):
 
@@ -372,6 +382,7 @@ class JsonViewer(QtWidgets.QMainWindow):
         settlement_fix.addAction(self._set_action('&StrangerVisit', lambda: self.json_view.switch_judgement('StrangerVisit')))
         settlement_fix.addAction(self._set_action('&Conflict', lambda: self.json_view.switch_judgement('Conflict')))
         self.exp.addMenu(settlement_fix)
+        self.exp.addAction(self._set_action('&Fix Time Error', self.json_view.fix_timestamp))
         self.exp.setDisabled(True)
         # exp.addAction('Combine Discovery')
         # exp.addAction('Combine Base')
@@ -407,6 +418,10 @@ class JsonViewer(QtWidgets.QMainWindow):
         self.path = path or QtWidgets.QFileDialog.getOpenFileName(self, 'Open file', PATH, 'NMS Save (*.hg);;All Files (*)')[0]
         if self.path:
             PATH = str(Path(self.path).parent)
+            name = Path(self.path).name
+            if name.startswith('mf_'):
+                print(':angri:! Is', name, 'a metafile? Tried to load corresponding save file')
+                self.path = str(Path(PATH, name.lstrip('mf_')))
             save_config()
             self.json_view.open_file(self.path)
             for action in self.file.actions():
@@ -433,6 +448,10 @@ class JsonViewer(QtWidgets.QMainWindow):
     # def keyPressEvent(self, e):
     #     if e.key() == QtCore.Qt.Key_Escape:
     #         self.close()
+
+
+def default_find(find_str, obj):
+    return find_str in '#'.join([str(i) for i in obj.data]).lower()
 
 
 def load_config():
