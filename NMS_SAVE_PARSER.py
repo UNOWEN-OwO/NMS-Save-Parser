@@ -326,9 +326,9 @@ class JsonView(QtWidgets.QWidget):
             self.tree_widget.currentItem().setText(1, judge)
             self.tree_widget.currentItem().data[1] = judge
 
-    def fix_timestamp(self):
+    def fix_timestamp(self, force=False):
         def value_type_find(find_type, obj):
-            return type(obj.data[1]) == find_type and 'Seed' not in obj.data[0] and 'Dead' not in obj.data[0] and 'UTC' not in obj.data[0] and obj.data[1] > datetime.now()
+            return type(obj.data[1]) == find_type and (force or ('Seed' not in obj.data[0] and 'Dead' not in obj.data[0] and 'UTC' not in obj.data[0])) and obj.data[1] > datetime.now()
         datetime_list = self.root_item.find(datetime, value_type_find)
         for item in datetime_list:
             print(item.data[0]+':', item.data[1], '-> ', end='')
@@ -383,6 +383,7 @@ class JsonViewer(QtWidgets.QMainWindow):
         settlement_fix.addAction(self._set_action('&Conflict', lambda: self.json_view.switch_judgement('Conflict')))
         self.exp.addMenu(settlement_fix)
         self.exp.addAction(self._set_action('&Fix Time Error', self.json_view.fix_timestamp))
+        self.exp.addAction(self._set_action('&Force Fix Time Error', lambda: self.json_view.fix_timestamp(True)))
         self.exp.setDisabled(True)
         # exp.addAction('Combine Discovery')
         # exp.addAction('Combine Base')
