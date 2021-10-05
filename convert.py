@@ -1,15 +1,16 @@
+import argparse
 import json
 import struct
-import argparse
-from sys import argv
-from pathlib import Path
+
 import lz4.block as lb
+
+from _mapping import _DECODING, _ENCODING
 
 
 def save_file(path, data):
     mode = SRC_MODE if SAVE_MODE == 0 else SAVE_MODE
     if mode < 3:
-        map_keys(data, encode_map)
+        map_keys(data, _ENCODING)
 
     if mode != 2:
         with open(path, 'wb') as file:
@@ -67,7 +68,7 @@ def load_file(file_path):
             SRC_MODE = 2
         data = json.loads(dest.decode('utf-8'))
         if len([k for k in data.keys() if len(k) == 3]) > 3:
-            map_keys(data, decode_map)
+            map_keys(data, _DECODING)
             if SRC_MODE == 3:
                 SRC_MODE = 1
         return data
@@ -79,16 +80,6 @@ parser.add_argument('-o', type=str, help='output path for NMS Save (*.hg) file')
 parser.add_argument('-m', '--mode', type=int, default=0, help='0 for as input, 1 for uncompressed, 2 for compressed, 3 for mapped')
 parser.add_argument('-s', '--slice', type=int, default=524288, help='save compress block size')
 args, unknown = parser.parse_known_args()
-
-# require mapping.json, you can get latest mapping from https://github.com/monkeyman192/MBINCompiler/releases
-encode_map = dict()
-decode_map = dict()
-with open('mapping.json', encoding='utf-8') as mapping_file:
-    km = json.load(mapping_file)
-    print('libMBIN_version:', km['libMBIN_version'])
-    for m in km['Mapping']:
-        decode_map[m['Key']] = m['Value']
-        encode_map[m['Value']] = m['Key']
 
 SRC_MODE = 1
 SAVE_MODE = args.mode
