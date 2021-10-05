@@ -3,15 +3,17 @@
 
 import json
 import struct
-from sys import argv, exit
-from pathlib import Path
-from datetime import datetime, timedelta
-from pytimeparse.timeparse import timeparse
 import time
+from datetime import datetime, timedelta
+from pathlib import Path
+from sys import argv, exit
 
 import lz4.block as lb
 from PyQt5 import QtCore
 from PyQt5 import QtWidgets
+from pytimeparse.timeparse import timeparse
+
+from _mapping import _DECODING, _ENCODING
 
 NMS_FILE_TYPE = ['As Source (*.hg)',
                  'Decompressed NMS Save (*.hg)',
@@ -179,7 +181,7 @@ class JsonView(QtWidgets.QWidget):
         self.notification.repaint()
         data = serialize_json(self.root_item)
         if mode < 3:
-            map_keys(data, encode_map)
+            map_keys(data, _ENCODING)
 
         if mode != 2:
             with open(path, 'wb') as file:
@@ -540,7 +542,7 @@ def load_file(file_path):
             SRC_MODE = 2
         data = json.loads(dest.decode('utf-8'))
         if len([k for k in data.keys() if len(k) == 3]) > 3:
-            map_keys(data, decode_map)
+            map_keys(data, _DECODING)
             if SRC_MODE == 3:
                 SRC_MODE = 1
         return data
@@ -552,16 +554,6 @@ def main():
     json_viewer = JsonViewer()
     exit(qt_app.exec_())
 
-
-# require mapping.json, you can get latest mapping from https://github.com/monkeyman192/MBINCompiler/releases
-encode_map = dict()
-decode_map = dict()
-with open('mapping.json', encoding='utf-8') as mapping_file:
-    km = json.load(mapping_file)
-    print('libMBIN_version:', km['libMBIN_version'])
-    for m in km['Mapping']:
-        decode_map[m['Key']] = m['Value']
-        encode_map[m['Value']] = m['Key']
 
 if '__main__' == __name__:
     main()

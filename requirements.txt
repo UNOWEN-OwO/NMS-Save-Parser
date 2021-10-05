@@ -1,3 +1,5 @@
-pyqt
+lz4
+PyQt5
+pytimeparse
 requests
 spookyhash
