@@ -60,11 +60,18 @@ def _main():
             )
         }
 
-    with open("mapping.txt", "w", encoding="utf-8", newline='\n') as f:
-        for k, v in (mapping1 | mapping2).items():
-            if k != (hv := _hash(v)):
-                print(f"{v} has inconsistent hash: {k} vs {hv}", file=sys.stderr)
-            print(f"{hv} {v}", file=f)
+    decoding = {}
+    encoding = {}
+    for k, v in (mapping1 | mapping2).items():
+        if k != (hv := _hash(v)):
+            print(f"{v} has inconsistent hash: {k} vs {hv}", file=sys.stderr)
+        decoding[hv] = v
+        encoding[v] = hv
+
+    with open("_mapping.py", "w", encoding="utf-8", newline='\n') as f:
+        print(f"""_DECODING = {json.dumps(decoding, indent=4, sort_keys=True)}
+
+_ENCODING = {json.dumps(encoding, indent=4, sort_keys=True)}""", file=f)
 
     shutil.rmtree(tmp)
 
