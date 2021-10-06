@@ -1,16 +1,14 @@
-# require
-# PyQt5, lz4
+#!/usr/bin/env python3
 
 import json
 import struct
+import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from sys import argv, exit
 
 import lz4.block as lb
-from PyQt5 import QtCore
-from PyQt5 import QtWidgets
+from PyQt5 import QtCore, QtWidgets
 from pytimeparse.timeparse import timeparse
 
 from _mapping import _DECODING, _ENCODING
@@ -341,7 +339,7 @@ class JsonView(QtWidgets.QWidget):
 
 class JsonViewer(QtWidgets.QMainWindow):
 
-    def __init__(self):
+    def __init__(self, argv):
         super(JsonViewer, self).__init__()
 
         self.json_view = JsonView()
@@ -548,12 +546,12 @@ def load_file(file_path):
         return data
 
 
-def main():
+def main(argv):
     load_config()
-    qt_app = QtWidgets.QApplication([])
-    json_viewer = JsonViewer()
+    qt_app = QtWidgets.QApplication(argv)
+    json_viewer = JsonViewer(argv)
     exit(qt_app.exec_())
 
 
 if '__main__' == __name__:
-    main()
+    main(sys.argv)
