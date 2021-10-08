@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import gc
 import json
 import shutil
 import subprocess
@@ -37,41 +38,73 @@ def _main():
             "https://github.com/monkeyman192/MBINCompiler/releases/latest",
             allow_redirects=False
         ).headers["Location"]).name
-        mapping1 = session.get(
+        json_content = session.get(
             f"https://github.com/monkeyman192/MBINCompiler/releases/download/{version}/mapping.json"
         ).text
+        del version
 
-        res = session.get("https://github.com/goatfungus/NMSSaveEditor/raw/master/NMSSaveEditor.jar")
+        jar_res = session.get("https://github.com/goatfungus/NMSSaveEditor/raw/master/NMSSaveEditor.jar")
 
-    mapping1 = {
+    loaded_json = json.loads(json_content)
+    del json_content
+
+    json_version = loaded_json["libMBIN_version"]
+    mapping = {
         m["Key"]: m["Value"]
-        for m in json.loads(mapping1)["Mapping"]
+        for m in loaded_json["Mapping"]
     }
+    del loaded_json
+
+    gc.collect()
 
     with open(tmp / "NMSSaveEditor.jar", "wb") as f:
-        f.write(res.content)
+        f.write(jar_res.content)
+    del jar_res
     subprocess.run(["jar", "-xf", "NMSSaveEditor.jar"], cwd=tmp)
+
     with open(tmp / "nomanssave/db/jsonmap.txt", "r") as f:
-        mapping2 = {
-            k: v
+        mapping.update(
+            (k, v)
             for k, v in (
                 line.split()
-                for line in f
+                for line in f.read().splitlines()
+                if line
+            )
+        )
+    with open(tmp / "META-INF/MANIFEST.MF", "r") as f:
+        meta = {
+            k: v
+            for k, v in (
+                line.split(": ")
+                for line in f.read().splitlines()
+                if line
             )
         }
+        jar_version = meta["Implementation-Version"]
+        del meta
 
     decoding = {}
     encoding = {}
-    for k, v in (mapping1 | mapping2).items():
+    for k, v in mapping.items():
         if k != (hv := _hash(v)):
             print(f"{v} has inconsistent hash: {k} vs {hv}", file=sys.stderr)
         decoding[hv] = v
         encoding[v] = hv
+    del mapping
+
+    gc.collect()
 
     with open("_mapping.py", "w", encoding="utf-8", newline='\n') as f:
-        print(f"""_DECODING = {json.dumps(decoding, indent=4, sort_keys=True)}
+        print(f"""# Generated Automatically
+# DO NOT EDIT!
 
-_ENCODING = {json.dumps(encoding, indent=4, sort_keys=True)}""", file=f)
+_LIBMBIN_VERSION = "{json_version}"
+
+_NMSSAVEEDITOR_VERSION = "{jar_version}"
+
+_DECODING = {json.dumps(decoding, indent=4)}
+
+_ENCODING = {json.dumps(encoding, indent=4)}""", file=f)
 
     shutil.rmtree(tmp)
 
