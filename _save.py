@@ -1,23 +1,36 @@
-import gc
 import json
 import logging
 import mmap
-import shutil
 from pathlib import Path
 from typing import Any, Dict
 
 import lz4.block
+from PyQt5.QtWidgets import QTreeWidgetItem
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class _NMSSave:
+class NMSSaveField(QTreeWidgetItem):
+    from _mapping import _DECODING, _ENCODING
+    _MISSING = set()
+
+    def __init__(self, data: Dict[str, Any]):
+        attributes = self._attributes = {}
+        for k, v in data.items():
+            kn = self._DECODING.get(k, k)
+            if kn == k:
+                self._MISSING.add(k)
+                _LOGGER.warning(f"cannot decode key {k}")
+            attributes[kn] = v
+
+        QTreeWidgetItem.__init__(self, attributes.keys())
+
+
+class NMSSave:
     __slots__ = "_path", "_tree"
 
-    from _mapping import _DECODING, _ENCODING
     _BINARY_SEPARATOR = b'\x00' * 4
     _BINARY_START = b"\xE5\xA1\xED\xFE"
-    _MISSING = set()
 
     @classmethod
     def _decoding_dict(cls, d: Dict[str, Any], method: str):
