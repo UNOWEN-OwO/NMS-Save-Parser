@@ -22,6 +22,3 @@ optional arguments:
   -s SLICE, --slice SLICE
 
 ```
-
-
-Require mapping.json, you can get latest update from https://github.com/monkeyman192/MBINCompiler/releases
