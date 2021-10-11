@@ -87,6 +87,8 @@ class JsonDelegate(QtWidgets.QItemDelegate):
                     item.data[index.column()] = datetime.fromisoformat(editor.text())
                 elif type(item.data[index.column()]) == timedelta:
                     item.data[index.column()] = timedelta(seconds=timeparse(editor.text()))
+                else:
+                    item.data[index.column()] = type(item.data[index.column()])(editor.text())
             else:
                 item.data[index.column()] = type(item.data[index.column()])(editor.text())
             super(JsonDelegate, self).setModelData(editor, model, index)
@@ -445,7 +447,8 @@ class JsonViewer(QtWidgets.QMainWindow):
         global PATH
         path, f = QtWidgets.QFileDialog.getSaveFileName(self, 'Save file', PATH, ';;'.join(sorted(NMS_FILE_TYPE, key=lambda x: NMS_FILE_TYPE.index(x) != SAVE_MODE)))
         if path:
-            PATH = str(Path(self.path).parent)
+            PATH = str(Path(path).parent)
+            self.path = path
             save_config()
             self.json_view.save_file(path, NMS_FILE_TYPE.index(f))
 
