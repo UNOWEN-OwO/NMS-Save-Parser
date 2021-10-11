@@ -11,7 +11,21 @@ import lz4.block as lb
 from PyQt5 import QtCore, QtWidgets
 from pytimeparse.timeparse import timeparse
 
-from _mapping import _DECODING, _ENCODING
+try:
+    from _mapping import _LIBMBIN_VERSION, _NMSSAVEEDITOR_VERSION, _ENCODING, _DECODING
+    print('MBIN VERSION: ' + _LIBMBIN_VERSION +
+          '\nNMSE VERSION: ' + _NMSSAVEEDITOR_VERSION)
+except ImportError:
+    try:
+        print('mapping not found, try to fetch from MBIN & NMSE release')
+        from update_mapping import _main
+        _main()
+        from _mapping import _LIBMBIN_VERSION, _NMSSAVEEDITOR_VERSION, _ENCODING, _DECODING
+        print('MBIN VERSION: ' + _LIBMBIN_VERSION +
+              '\nNMSE VERSION: ' + _NMSSAVEEDITOR_VERSION)
+    except ImportError:
+        print('Unable to fetch latest mapping')
+
 
 NMS_FILE_TYPE = ['As Source (*.hg)',
                  'Decompressed NMS Save (*.hg)',
@@ -550,7 +564,7 @@ def main(argv):
     load_config()
     qt_app = QtWidgets.QApplication(argv)
     json_viewer = JsonViewer(argv)
-    exit(qt_app.exec_())
+    sys.exit(qt_app.exec_())
 
 
 if '__main__' == __name__:

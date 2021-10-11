@@ -64,8 +64,8 @@ def _main():
 
     with open(tmp / "nomanssave/db/jsonmap.txt", "r") as f:
         mapping.update(
-            (k, v)
-            for k, v in (
+            it
+            for it in (
                 line.split()
                 for line in f.read().splitlines()
                 if line
