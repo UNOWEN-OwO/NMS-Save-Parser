@@ -319,4 +319,7 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/macOS,Linux,Windows,JetBrains,Python
-config.json
+
+### Custom ###
+/config.json
+/mapping.bin

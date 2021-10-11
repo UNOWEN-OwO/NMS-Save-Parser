@@ -11,20 +11,9 @@ import lz4.block as lb
 from PyQt5 import QtCore, QtWidgets
 from pytimeparse.timeparse import timeparse
 
-try:
-    from _mapping import _LIBMBIN_VERSION, _NMSSAVEEDITOR_VERSION, _ENCODING, _DECODING
-    print('MBIN VERSION: ' + _LIBMBIN_VERSION +
-          '\nNMSE VERSION: ' + _NMSSAVEEDITOR_VERSION)
-except ImportError:
-    try:
-        print('mapping not found, try to fetch from MBIN & NMSE release')
-        from update_mapping import _main
-        _main()
-        from _mapping import _LIBMBIN_VERSION, _NMSSAVEEDITOR_VERSION, _ENCODING, _DECODING
-        print('MBIN VERSION: ' + _LIBMBIN_VERSION +
-              '\nNMSE VERSION: ' + _NMSSAVEEDITOR_VERSION)
-    except ImportError:
-        print('Unable to fetch latest mapping')
+from _mapping import _load
+
+_LIBMBIN_VERSION, _NMSSAVEEDITOR_VERSION, _DECODING, _ENCODING = _load(True)
 
 
 NMS_FILE_TYPE = ['As Source (*.hg)',

@@ -4,7 +4,9 @@ import struct
 
 import lz4.block as lb
 
-from _mapping import _DECODING, _ENCODING
+from _mapping import _load
+
+_, _, _DECODING, _ENCODING = _load(True)
 
 
 def save_file(path, data):
