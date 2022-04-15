@@ -115,7 +115,7 @@ def _fetch(
 _LIBMBIN_VERSION, _NMSSAVEEDITOR_VERSION, _DECODING = _fetch()
 _ENCODING = {
     v: k
-    for v, k in _DECODING.items()
+    for k, v in _DECODING.items()
 }
 
 
