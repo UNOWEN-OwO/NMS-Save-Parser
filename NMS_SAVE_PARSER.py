@@ -2,18 +2,121 @@
 
 import json
 import struct
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Mapping, Tuple
 
-import lz4.block as lb
+import lz4.block
+import msgpack
+import spookyhash
 from PyQt5 import QtCore, QtWidgets
 from pytimeparse.timeparse import timeparse
+from requests import Session
 
-from _mapping import _load
+_MASK = (1 << 64) - 1
+_ORD_0 = ord(b'0')
+_ORD_Z = ord(b'Z')
 
-_LIBMBIN_VERSION, _NMSSAVEEDITOR_VERSION, _DECODING, _ENCODING = _load(True)
+
+# rewritten as per https://github.com/monkeyman192/MBINCompiler/blob/development/SaveFileMapping/Program.cs
+def _hash(s: str) -> str:
+    hashed = spookyhash.hash128(s.encode("utf-8"), 8268756125562466087, 8268756125562466087) & _MASK
+    return "".join(
+        chr(av if av <= _ORD_Z else av + 6)
+        for av in (
+            v % 68 + _ORD_0
+            for v in (
+                hashed,
+                hashed >> 21,
+                hashed >> 42
+            )
+        )
+    )
+
+
+def _fetch(
+    update_mapping: bool = False,
+    force_fetch_json: bool = False,
+    force_fetch_jar: bool = False
+) -> Tuple[str, str, Mapping[str, str]]:
+    (tmp := Path("tmp")).mkdir(0o755, True, True)
+
+    if (mapping_path := tmp / "mapping.bin").exists() and not update_mapping:
+        with open(mapping_path, "rb") as f:
+            data = msgpack.unpackb(lz4.block.decompress(f.read()))
+            return data.pop("json"), data.pop("jar"), data.pop("mapping")
+
+    if not (json_path := tmp / "mapping.json").exists() or force_fetch_json:
+        with Session() as session:
+            version = Path(session.head(
+                "https://github.com/monkeyman192/MBINCompiler/releases/latest",
+                allow_redirects=False
+            ).headers["Location"]).name
+            json_content = session.get(
+                f"https://github.com/monkeyman192/MBINCompiler/releases/download/{version}/mapping.json"
+            ).text
+
+        loaded_json = json.loads(json_content)
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(loaded_json, f, separators=(',', ':'))
+    else:
+        with open(json_path, "r", encoding="utf-8") as f:
+            loaded_json = json.load(f)
+    json_version = loaded_json.pop("libMBIN_version")
+    mapping = {
+        m.pop("Key"): m.pop("Value")
+        for m in loaded_json.pop("Mapping")
+    }
+
+    if not (jar_path := tmp / "NMSSaveEditor.jar").exists() or force_fetch_jar:
+        with Session() as session:
+            jar_res = session.get("https://github.com/goatfungus/NMSSaveEditor/raw/master/NMSSaveEditor.jar")
+        with open(jar_path, "wb") as f:
+            f.write(jar_res.content)
+        with open(jar_path, "wb") as f:
+            f.write(jar_res.content)
+
+    if subprocess.run(["jar", "-xf", "NMSSaveEditor.jar"], cwd=tmp).returncode:
+        sys.exit(1)
+
+    with open(tmp / "nomanssave/db/jsonmap.txt", "r") as f:
+        mapping.update(
+            line.split()
+            for line in f.read().splitlines()
+            if line
+        )
+    with open(tmp / "META-INF/MANIFEST.MF", "r") as f:
+        meta = {
+            k: v
+            for k, v in (
+                line.split(": ")
+                for line in f.read().splitlines()
+                if line
+            )
+        }
+        jar_version = meta["Implementation-Version"]
+    for k, v in mapping.items():
+        if k != (hv := _hash(v)):
+            raise RuntimeError(f"{v} has inconsistent hash: {k} vs {hv}")
+
+    with open(mapping_path, "wb") as f:
+        f.write(lz4.block.compress(msgpack.packb({
+            "json": json_version,
+            "jar": jar_version,
+            "mapping": mapping
+        }), mode="high_compression", compression=12))
+
+    return json_version, jar_version, mapping
+
+
+_LIBMBIN_VERSION, _NMSSAVEEDITOR_VERSION, _DECODING = _fetch()
+_ENCODING = {
+    v: k
+    for v, k in _DECODING.items()
+}
 
 
 NMS_FILE_TYPE = ['As Source (*.hg)',
@@ -520,7 +623,7 @@ def compress_file(data):
     while block := data[:SLICE]:
         data = data[SLICE:]
         block += b'\x00' if len(block) < SLICE and block[-1] != b'\x00' else b''
-        c = lb.compress(block, store_size=False)
+        c = lz4.block.compress(block, store_size=False)
         ret += b'\xE5\xA1\xED\xFE' + struct.pack('i', len(c)) + struct.pack('i', len(block)) + b'\x00' * 4 + c
     return ret
 
@@ -534,7 +637,7 @@ def load_file(file_path):
             block_size = struct.unpack('i', src.read(4))[0]
             dest_size = struct.unpack('i', src.read(4))[0]
             src.read(4)
-            dest += lb.decompress(src.read(block_size), uncompressed_size=dest_size)
+            dest += lz4.block.decompress(src.read(block_size), uncompressed_size=dest_size)
             # print('block_size:', block_size, 'dest_size:', dest_size, 'actual_size:', len(dest))
 
         if src.read(1):

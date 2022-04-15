@@ -1,5 +1,6 @@
 lz4
 PyQt5
+msgpack
 pytimeparse
 requests
 spookyhash
